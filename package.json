@@ -1,0 +1,17 @@
+{
+  "name": "md-convertor",
+  "version": "1.0.0",
+  "description": "Markdown to PDF converter with RTL/LTR support",
+  "main": "index.js",
+  "bin": {
+    "md2pdf": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js sample.md output.pdf",
+    "test": "node index.js sample.md output.pdf --lang fa"
+  },
+  "dependencies": {
+    "marked": "^15.0.0",
+    "puppeteer-core": "^24.0.0"
+  }
+}
