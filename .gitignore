@@ -3,6 +3,7 @@
 .uploads
 .DS_Store
 *.pdf
+tests
 
 ### Node template
 # Logs
