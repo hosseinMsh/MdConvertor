@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { marked } = require('marked');
 const puppeteer = require('puppeteer-core');
+const katex = require('katex');
 
 const args = process.argv.slice(2);
 
@@ -18,6 +19,7 @@ Options:
   --author <text>       Document author
   --cover               Generate a cover page
   --toc                 Generate table of contents
+  --fn-mode <mode>      Footnote placement: end (default), page
   --page-size <size>    Page size: A4 (default), Letter, Legal, A3, A5
   --orientation <dir>   Page orientation: portrait (default), landscape
   --margin <mm>         Page margin in mm (default: 20)
@@ -66,6 +68,7 @@ const title = getArg('--title', '');
 const author = getArg('--author', '');
 const hasCover = args.includes('--cover');
 const hasToc = args.includes('--toc');
+const fnMode = getArg('--fn-mode', 'end');
 const pageSize = getArg('--page-size', 'A4').toUpperCase();
 const orientation = getArg('--orientation', 'portrait');
 const MARGIN = parseInt(getArg('--margin', '20'));
@@ -83,6 +86,7 @@ const themes = {
   light: {
     bg: '#ffffff',
     text: '#1a1a1a',
+    textSecondary: '#64748b',
     heading1: '#0a0a0a',
     heading2: '#111827',
     heading3: '#1f2937',
@@ -108,6 +112,7 @@ const themes = {
   dark: {
     bg: '#0d1117',
     text: '#e6edf3',
+    textSecondary: '#8b949e',
     heading1: '#f0f6fc',
     heading2: '#e6edf3',
     heading3: '#d2d8e0',
@@ -133,6 +138,7 @@ const themes = {
   sepia: {
     bg: '#fbf7f0',
     text: '#3b2e1e',
+    textSecondary: '#7d6b55',
     heading1: '#2c1f0e',
     heading2: '#3b2e1e',
     heading3: '#4a3d2d',
@@ -164,7 +170,14 @@ const fontFamily = isRTL
   : "'Inter', 'Vazirmatn', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 
 const markdown = fs.readFileSync(inputFile, 'utf-8');
-const bodyHtml = marked.parse(markdown);
+let rawMd = renderMath(preprocessBareLatex(markdown));
+const { markdown: mdProcessed, footnotesHtml } = processFootnotes(rawMd, isRTL, escapeHtml, fnMode, marked);
+let bodyHtml;
+if (fnMode === 'page') {
+  bodyHtml = mdProcessed + '\n' + footnotesHtml;
+} else {
+  bodyHtml = marked.parse(mdProcessed) + '\n' + footnotesHtml;
+}
 
 // --- Build cover page ---
 let coverHtml = '';
@@ -209,6 +222,107 @@ if (hasToc) {
   }
 }
 
+const katexOpts = { displayMode: false, throwOnError: false, strict: false };
+const katexOptsDisplay = { displayMode: true, throwOnError: false, strict: false };
+
+function preprocessBareLatex(md) {
+  md = md.replace(/\(((?:[^()]|\([^()]*\))*\\[a-zA-Z]{2,}(?:[^()]|\([^()]*\))*)\)/g, '\\($1\\)');
+  md = md.replace(/\[((?:[^\[\]]|\[[^\[\]]*\])*\\[a-zA-Z]{2,}(?:[^\[\]]|\[[^\[\]]*\])*)\]/g, '\\[$1\\]');
+  md = md.replace(/^\s*\[\s*$/gm, '\\[');
+  md = md.replace(/^\s*\]\s*$/gm, '\\]');
+
+  const lines = md.split('\n');
+  const result = [];
+  let inCode = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^```/.test(line)) { inCode = !inCode; result.push(line); continue; }
+    if (inCode) { result.push(line); continue; }
+    if (line.startsWith('\\begin{') || line.startsWith('\\end{')) {
+      result.push(line); continue;
+    }
+    if (/^\s*\\[a-zA-Z]/.test(line) && !/^\s*\\(?:text|textbf|textit|emph|href)/.test(line)) {
+      result.push('$$' + line.trim() + '$$');
+    } else {
+      result.push(line);
+    }
+  }
+  return result.join('\n');
+}
+
+function renderMath(md) {
+  md = md.replace(/\$\$([\s\S]*?)\$\$/g, (_, expr) => {
+    try { return katex.renderToString(expr.trim(), katexOptsDisplay); } catch (_) { return '<div class="math-error">' + escapeHtml(expr) + '</div>'; }
+  });
+  md = md.replace(/\\\[([\s\S]*?)\\\]/g, (_, expr) => {
+    try { return katex.renderToString(expr.trim(), katexOptsDisplay); } catch (_) { return '<div class="math-error">' + escapeHtml(expr) + '</div>'; }
+  });
+  md = md.replace(/\$(.+?)\$/g, (_, expr) => {
+    try { return katex.renderToString(expr.trim(), katexOpts); } catch (_) { return '<span class="math-error">' + escapeHtml(expr) + '</span>'; }
+  });
+  md = md.replace(/\\\(([\s\S]*?)\\\)/g, (_, expr) => {
+    try { return katex.renderToString(expr.trim(), katexOpts); } catch (_) { return '<span class="math-error">' + escapeHtml(expr) + '</span>'; }
+  });
+  return md;
+}
+
+function processFootnotes(md, rtl, esc, mode, markParser) {
+  const defs = {};
+  let processed = md.replace(/^\[\^(\w+)]:\s*(.+)$/gm, (match, id, text) => {
+    defs[id] = (defs[id] || '') + text;
+    return '';
+  });
+
+  let counter = 0;
+  const fnMap = {};
+  processed = processed.replace(/\[\^(\w+)]/g, (match, id) => {
+    if (!fnMap[id]) fnMap[id] = ++counter;
+    const num = fnMap[id];
+    return `<sup class="fn-ref"><a href="#fn-${id}" id="fnref-${id}">${num}</a></sup>`;
+  });
+
+  let fnSection = '';
+  if (Object.keys(defs).length > 0) {
+    if (mode === 'page') {
+      const ordered = Object.keys(defs).sort((a, b) => (fnMap[a] || 0) - (fnMap[b] || 0));
+      let pageContent = processed;
+      fnSection = '<section class="fn-page-footnotes">';
+      fnSection += '<hr class="fn-hr">';
+      fnSection += '<div class="fn-body">';
+      for (const id of ordered) {
+        const num = fnMap[id] || ordered.indexOf(id) + 1;
+        const content = markParser.parseInline(defs[id]);
+        fnSection += '<div class="fn-item" id="fn-' + id + '">';
+        fnSection += '<span class="fn-num">' + num + '.</span> ';
+        fnSection += '<span class="fn-text">' + content + '</span> ';
+        fnSection += '<a class="fn-back" href="#fnref-' + id + '" title="' + (rtl ? 'بازگشت' : 'Back to text') + '">↩</a>';
+        fnSection += '</div>';
+      }
+      fnSection += '</div></section>';
+
+      const pageWrap = '<div class="fn-page">' + markParser.parse(pageContent.trim()) + fnSection + '</div>';
+      return { markdown: pageWrap, footnotesHtml: '' };
+    }
+
+    fnSection = '<hr class="fn-hr"><section class="footnotes" dir="' + (rtl ? 'rtl' : 'ltr') + '">';
+    fnSection += '<h4 class="fn-heading">' + (rtl ? 'پانویس‌ها' : 'Footnotes') + '</h4>';
+    fnSection += '<div class="fn-body">';
+    const ordered = Object.keys(defs).sort((a, b) => (fnMap[a] || 0) - (fnMap[b] || 0));
+    for (const id of ordered) {
+      const num = fnMap[id] || ordered.indexOf(id) + 1;
+      const content = markParser.parseInline(defs[id]);
+      fnSection += '<div class="fn-item" id="fn-' + id + '">';
+      fnSection += '<span class="fn-num">' + num + '.</span> ';
+      fnSection += '<span class="fn-text">' + content + '</span> ';
+      fnSection += '<a class="fn-back" href="#fnref-' + id + '" title="' + (rtl ? 'بازگشت' : 'Back to text') + '">↩</a>';
+      fnSection += '</div>';
+    }
+    fnSection += '</div></section>';
+  }
+
+  return { markdown: processed.trim(), footnotesHtml: fnSection };
+}
+
 function escapeHtml(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -228,6 +342,7 @@ const htmlContent = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <title>${escapeHtml(title || path.basename(inputFile, path.extname(inputFile)))}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
   <style>
     ${googleFontsImport}
     ${googleFontsFallback}
@@ -513,6 +628,100 @@ const htmlContent = `<!DOCTYPE html>
       margin-inline-end: 0.4em;
     }
 
+    /* ===== Footnotes (end mode) ===== */
+    .fn-ref {
+      font-size: 0.75em;
+      vertical-align: super;
+      line-height: 1;
+    }
+    .fn-ref a {
+      color: ${T.link};
+      text-decoration: none;
+      border: none;
+    }
+    .fn-ref a:hover {
+      text-decoration: underline;
+    }
+    hr.fn-hr {
+      margin-top: 2em;
+      border-top: 1px solid ${T.border};
+    }
+    .footnotes {
+      font-size: 0.85em;
+      color: ${T.textSecondary || '#64748b'};
+      margin-top: 1em;
+    }
+    .fn-heading {
+      font-size: 1em;
+      font-weight: 600;
+      color: ${T.text};
+      margin-bottom: 0.5em;
+    }
+    .fn-body {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3em;
+    }
+    .fn-item {
+      display: flex;
+      align-items: baseline;
+      gap: 0.3em;
+      line-height: 1.6;
+    }
+    .fn-num {
+      font-weight: 600;
+      color: ${T.text};
+      min-width: 1.2em;
+      text-align: end;
+    }
+    .fn-text {
+      flex: 1;
+    }
+    .fn-text p {
+      display: inline;
+      margin: 0;
+    }
+    .fn-back {
+      text-decoration: none;
+      border: none;
+      color: ${T.link};
+      font-size: 0.85em;
+      opacity: 0.7;
+    }
+    .fn-back:hover {
+      opacity: 1;
+    }
+
+    /* ===== Footnotes (page mode) ===== */
+    .fn-page {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      break-inside: avoid;
+      page-break-inside: avoid;
+      padding: ${MARGIN}mm;
+    }
+    .fn-page > :last-child {
+      margin-top: auto;
+    }
+    .fn-page-footnotes {
+      font-size: 0.85em;
+      color: ${T.textSecondary};
+      padding-top: 0.5em;
+    }
+    .fn-page-footnotes .fn-hr {
+      margin: 0 0 0.5em;
+    }
+    .fn-page-footnotes .fn-body {
+      gap: 0.2em;
+    }
+    .fn-page-footnotes .fn-item {
+      font-size: 0.95em;
+    }
+    .fn-page-footnotes .fn-num {
+      min-width: 1em;
+    }
+
     /* ===== Definition Lists ===== */
     dt {
       font-weight: 600;
@@ -541,9 +750,7 @@ const htmlContent = `<!DOCTYPE html>
 <body>
   ${coverHtml}
   ${tocHtml}
-  <div class="page">
-    ${bodyHtml}
-  </div>
+  ${fnMode === 'page' ? bodyHtml : '<div class="page">' + bodyHtml + '</div>'}
   <script>
     (function() {
       var els = document.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, td, th, blockquote, dd, dt, figcaption');

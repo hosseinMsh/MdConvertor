@@ -11,7 +11,10 @@
     "test": "node index.js sample.md output.pdf --lang fa"
   },
   "dependencies": {
+    "express": "^4.21.0",
+    "katex": "^0.18.0",
     "marked": "^15.0.0",
+    "multer": "^1.4.5-lts.1",
     "puppeteer-core": "^24.0.0"
   }
 }

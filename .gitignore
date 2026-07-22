@@ -1,5 +1,7 @@
 .idea
 .temp.html
+.uploads
+.DS_Store
 *.pdf
 
 ### Node template

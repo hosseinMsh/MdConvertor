@@ -116,5 +116,36 @@ for i in range(10):
 
 ---
 
-> **نکته:** این فایل نمونه جهت تست خروجی PDF با پشتیبانی از متن‌های ترکیبی فارسی و انگلیسی تهیه شده است.  
-> **Note:** This sample file is designed to test mixed Persian and English content in PDF output.
+## فرمول‌های ریاضی (Math)
+
+نظریه بازی‌ها از مفاهیم ریاضی مانند $s_{i}(\theta_{i})$ برای نمایش استراتژی استفاده می‌کند. یک تابع مطلوبیت معمولاً به صورت $u_{i}(s_{i}, s_{-i})$ تعریف می‌شود.
+
+$$ \sum_{i=1}^{n} u_{i}(s_{i}, s_{-i}) = U_{total} $$
+
+و نیز فرمول محاسبه ارزش مورد انتظار در بازی‌های بیزی:
+
+$$ \mathbb{E}[u_{i}] = \int_{\Theta} u_{i}(s_{i}(\theta_{i}), s_{-i}(\theta_{-i})) \, dF(\theta) $$
+
+حالت خاص: تابع لاگرانژ برای بهینه‌سازی مقید:
+
+$$ \mathcal{L}(x, \lambda) = f(x) + \sum_{j=1}^{m} \lambda_{j} \, g_{j}(x) $$
+
+و معادله $E = mc^{2}$ و فرمول $\alpha_{i} + \beta_{j} = \gamma^{2}$ در متن.
+
+---
+
+## پانویس‌ها (Footnotes)
+
+نظریه بازی‌ها موضوعی است که به تحلیل تصمیم‌گیری راهبردی میان بازیگران وابسته به یکدیگر می‌پردازد[^1]. در بازی‌های کلاسیک مانند بازی‌های استراتژیک با اطلاعات کامل[^2]، همه بازیکنان از نوع، اهداف، هزینه‌ها و منافع یکدیگر آگاهی کامل دارند. مدل‌های دیگری از بازی‌ها هست که در آن‌ها بازیکنان دارای اطلاعات ناقص[^3] بوده و عدم قطعیت باعث می‌شود تصمیم بازیکنان و تحلیل موقعیت‌ها بر مبنای باور افراد باشد.
+
+Here is an example of English text with a footnote reference[^4] mixed right in the middle of the sentence for testing purposes.
+
+[^1]: استراتژی آستانه‌ای در بازی‌های بیزی // Threshold Strategy in Bayesian Games
+[^2]: اطلاعات کامل // Complete Information
+[^3]: اطلاعات ناقص // Incomplete Information
+[^4]: This is an English footnote used for testing bidirectional footnote support in the MdConvertor tool.
+
+---
+
+> **نکته:** این فایل نمونه جهت تست خروجی PDF با پشتیبانی از متن‌های ترکیبی فارسی و انگلیسی و پانویس‌ها تهیه شده است.  
+> **Note:** This sample file is designed to test mixed Persian and English content and footnotes in PDF output.

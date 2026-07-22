@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MdConvertor - تبدیل Markdown به PDF</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --surface-hover: #f1f5f9;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --text-secondary: #64748b;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --primary-light: #eff6ff;
+      --success: #10b981;
+      --danger: #ef4444;
+      --radius: 12px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-lg: 0 10px 25px rgba(0,0,0,0.08);
+    }
+
+    body {
+      font-family: 'Vazirmatn', 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.7;
+    }
+
+    .header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 1.2rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      box-shadow: var(--shadow);
+    }
+
+    .header h1 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--primary), #8b5cf6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header span {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      margin-inline-start: auto;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 2rem auto;
+      padding: 0 1.5rem;
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 860px) {
+      .container { grid-template-columns: 1fr; }
+    }
+
+    /* ===== Upload Area ===== */
+    .upload-area {
+      background: var(--surface);
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 3rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .upload-area:hover,
+    .upload-area.dragover {
+      border-color: var(--primary);
+      background: var(--primary-light);
+    }
+
+    .upload-area.has-file {
+      border-style: solid;
+      border-color: var(--success);
+    }
+
+    .upload-area .icon {
+      font-size: 3rem;
+      margin-bottom: 0.8rem;
+      opacity: 0.6;
+    }
+
+    .upload-area h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 0.3rem;
+      color: var(--text);
+    }
+
+    .upload-area p {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+    }
+
+    .upload-area .file-info {
+      display: none;
+      margin-top: 1rem;
+      padding: 0.8rem 1rem;
+      background: var(--primary-light);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      color: var(--primary);
+    }
+
+    .upload-area.has-file .file-info { display: block; }
+    .upload-area.has-file .drop-hint { display: none; }
+
+    #file-input { display: none; }
+
+    /* ===== Options Panel ===== */
+    .options-panel {
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 1.5rem;
+      position: sticky;
+      top: 1.5rem;
+    }
+
+    .options-panel h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 1.2rem;
+      padding-bottom: 0.6rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .option-group {
+      margin-bottom: 1rem;
+    }
+
+    .option-group label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 0.3rem;
+    }
+
+    .option-group select,
+    .option-group input[type="text"],
+    .option-group input[type="number"] {
+      width: 100%;
+      padding: 0.5rem 0.7rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 0.85rem;
+      color: var(--text);
+      background: var(--bg);
+      transition: border 0.15s;
+    }
+
+    .option-group select:focus,
+    .option-group input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+    }
+
+    .option-group.inline {
+      display: flex;
+      gap: 0.8rem;
+    }
+
+    .option-group.inline > * { flex: 1; }
+
+    .option-group.checkbox {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .option-group.checkbox label {
+      margin-bottom: 0;
+      cursor: pointer;
+    }
+
+    .option-group.checkbox input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      accent-color: var(--primary);
+    }
+
+    .option-group .note {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      margin-top: 0.15rem;
+    }
+
+    /* ===== Cover Options ===== */
+    .cover-options {
+      display: none;
+      margin-top: 0.6rem;
+      padding: 0.8rem;
+      background: var(--bg);
+      border-radius: 8px;
+    }
+
+    .cover-options.show { display: block; }
+
+    .cover-options input {
+      margin-bottom: 0.5rem;
+    }
+
+    /* ===== Buttons ===== */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      width: 100%;
+      padding: 0.7rem 1.2rem;
+      border: none;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-success {
+      background: var(--success);
+      color: #fff;
+    }
+
+    .btn-success:hover { background: #059669; }
+
+    .btn-secondary {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover { background: var(--surface-hover); }
+
+    .convert-section {
+      margin-top: 1.2rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ===== Status / Progress ===== */
+    .status {
+      display: none;
+      margin-top: 0.8rem;
+      padding: 0.7rem 1rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      text-align: center;
+    }
+
+    .status.loading {
+      display: block;
+      background: var(--primary-light);
+      color: var(--primary);
+    }
+
+    .status.success {
+      display: block;
+      background: #ecfdf5;
+      color: #065f46;
+    }
+
+    .status.error {
+      display: block;
+      background: #fef2f2;
+      color: #991b1b;
+    }
+
+    /* ===== Preview ===== */
+    .preview-area {
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .preview-area .preview-header {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    .preview-area .preview-body {
+      padding: 1.5rem;
+      max-height: 500px;
+      overflow-y: auto;
+      font-size: 0.85rem;
+      line-height: 1.8;
+      color: var(--text-secondary);
+    }
+
+    .preview-body h1, .preview-body h2, .preview-body h3 {
+      color: var(--text);
+      margin-top: 1em;
+      margin-bottom: 0.3em;
+    }
+
+    .preview-body h1 { font-size: 1.3em; }
+    .preview-body h2 { font-size: 1.1em; }
+    .preview-body h3 { font-size: 1em; }
+    .preview-body p { margin-bottom: 0.5em; }
+    .preview-body code {
+      background: var(--bg);
+      padding: 0.1em 0.3em;
+      border-radius: 3px;
+      font-size: 0.85em;
+    }
+    .preview-body pre {
+      background: #1f2937;
+      color: #e5e7eb;
+      padding: 0.8em;
+      border-radius: 6px;
+      overflow-x: auto;
+      direction: ltr;
+      text-align: left;
+    }
+    .preview-body pre code { background: none; padding: 0; color: inherit; }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>MdConvertor</h1>
+    <span>Markdown &rarr; PDF</span>
+  </div>
+
+  <div class="container">
+
+    <!-- Left Column -->
+    <div>
+      <!-- Upload -->
+      <div class="upload-area" id="dropZone">
+        <div class="icon">📄</div>
+        <h2 class="drop-hint">فایل Markdown را انتخاب یا اینجا رها کنید</h2>
+        <p class="drop-hint">فایل‌های با پسوند .md پشتیبانی می‌شوند</p>
+        <div class="file-info" id="fileInfo"></div>
+        <input type="file" id="file-input" accept=".md, .markdown, text/markdown">
+      </div>
+
+      <!-- Preview -->
+      <div class="preview-area" style="margin-top: 1.5rem;">
+        <div class="preview-header">پیش‌نمایش محتوا</div>
+        <div class="preview-body" id="previewBody">
+          <p style="text-align:center; padding:2rem 0; color: #94a3b8;">فایلی انتخاب نشده است</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Options -->
+    <div class="options-panel">
+      <h3>تنظیمات خروجی</h3>
+
+      <!-- Direction -->
+      <div class="option-group inline">
+        <div>
+          <label>جهت متن</label>
+          <select id="lang">
+            <option value="fa">فارسی (RTL)</option>
+            <option value="en">انگلیسی (LTR)</option>
+            <option value="ar">عربی (RTL)</option>
+            <option value="he">عبری (RTL)</option>
+          </select>
+        </div>
+        <div>
+          <label>اجبار جهت</label>
+          <select id="direction">
+            <option value="auto">خودکار</option>
+            <option value="rtl">RTL</option>
+            <option value="ltr">LTR</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Theme -->
+      <div class="option-group">
+        <label>قالب رنگی</label>
+        <select id="theme">
+          <option value="light">روشن (Light)</option>
+          <option value="dark">تیره (Dark)</option>
+          <option value="sepia">سپیا (Sepia)</option>
+        </select>
+      </div>
+
+      <!-- Page -->
+      <div class="option-group inline">
+        <div>
+          <label>اندازه صفحه</label>
+          <select id="pageSize">
+            <option value="A4">A4</option>
+            <option value="Letter">Letter</option>
+            <option value="Legal">Legal</option>
+            <option value="A3">A3</option>
+            <option value="A5">A5</option>
+          </select>
+        </div>
+        <div>
+          <label>جهت صفحه</label>
+          <select id="orientation">
+            <option value="portrait">عمودی</option>
+            <option value="landscape">افقی</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Spacing -->
+      <div class="option-group inline">
+        <div>
+          <label>فاصله حاشیه (mm)</label>
+          <input type="number" id="margin" value="20" min="5" max="50">
+        </div>
+        <div>
+          <label>اندازه قلم (pt)</label>
+          <input type="number" id="fontSize" value="11" min="8" max="20" step="0.5">
+        </div>
+      </div>
+
+      <div class="option-group">
+        <label>فاصله خطوط</label>
+        <input type="number" id="lineHeight" value="1.9" min="1" max="3" step="0.1">
+      </div>
+
+      <!-- Cover -->
+      <div class="option-group checkbox">
+        <input type="checkbox" id="cover">
+        <label for="cover">صفحه جلد (کاور)</label>
+      </div>
+      <div class="cover-options" id="coverOptions">
+        <div class="option-group">
+          <input type="text" id="coverTitle" placeholder="عنوان سند">
+        </div>
+        <div class="option-group">
+          <input type="text" id="coverAuthor" placeholder="نویسنده">
+        </div>
+      </div>
+
+      <!-- Extra -->
+      <div class="option-group checkbox">
+        <input type="checkbox" id="toc">
+        <label for="toc">فهرست مطالب</label>
+      </div>
+      <div class="option-group checkbox">
+        <input type="checkbox" id="pageNumbers">
+        <label for="pageNumbers">شماره صفحات</label>
+      </div>
+
+      <!-- Convert Button -->
+      <div class="convert-section">
+        <button class="btn btn-primary" id="convertBtn" disabled>
+          تبدیل به PDF
+        </button>
+        <div class="status" id="status"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('file-input');
+    const fileInfo = document.getElementById('fileInfo');
+    const previewBody = document.getElementById('previewBody');
+    const convertBtn = document.getElementById('convertBtn');
+    const status = document.getElementById('status');
+
+    let selectedFile = null;
+
+    const coverCheck = document.getElementById('cover');
+    const coverOptions = document.getElementById('coverOptions');
+    coverCheck.addEventListener('change', () => {
+      coverOptions.classList.toggle('show', coverCheck.checked);
+    });
+
+    // Drag & Drop
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      const files = e.dataTransfer.files;
+      if (files.length > 0) handleFile(files[0]);
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length > 0) handleFile(fileInput.files[0]);
+    });
+
+    function handleFile(file) {
+      if (!file.name.endsWith('.md') && !file.name.endsWith('.markdown')) {
+        alert('لطفاً یک فایل Markdown (.md) انتخاب کنید.');
+        return;
+      }
+
+      selectedFile = file;
+      dropZone.classList.add('has-file');
+      fileInfo.textContent = `📄 ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+      convertBtn.disabled = false;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const md = e.target.result;
+        const lines = md.split('\n').slice(0, 60);
+        let html = '';
+        for (const line of lines) {
+          if (line.startsWith('#')) {
+            const level = line.match(/^#+/)[0].length;
+            const text = line.replace(/^#+\s*/, '');
+            html += `<h${Math.min(level, 4)}>${text}</h${Math.min(level, 4)}>`;
+          } else if (line.startsWith('```')) {
+            html += '<pre><code>...</code></pre>';
+          } else if (line.trim()) {
+            html += `<p>${line}</p>`;
+          } else {
+            html += '<br>';
+          }
+        }
+        if (lines.length >= 60) html += '<p style="color:#94a3b8;">... (ادامه)</p>';
+        previewBody.innerHTML = html;
+      };
+      reader.readAsText(file);
+    }
+
+    convertBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
+
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('lang', document.getElementById('lang').value);
+      formData.append('direction', document.getElementById('direction').value);
+      formData.append('theme', document.getElementById('theme').value);
+      formData.append('pageSize', document.getElementById('pageSize').value);
+      formData.append('orientation', document.getElementById('orientation').value);
+      formData.append('margin', document.getElementById('margin').value);
+      formData.append('fontSize', document.getElementById('fontSize').value);
+      formData.append('lineHeight', document.getElementById('lineHeight').value);
+
+      const dir = document.getElementById('direction').value;
+      if (dir === 'rtl') formData.append('rtl', 'true');
+      else if (dir === 'ltr') formData.append('ltr', 'true');
+
+      if (coverCheck.checked) {
+        formData.append('cover', 'true');
+        formData.append('title', document.getElementById('coverTitle').value || '');
+        formData.append('author', document.getElementById('coverAuthor').value || '');
+      }
+
+      if (document.getElementById('toc').checked) formData.append('toc', 'true');
+      if (document.getElementById('pageNumbers').checked) formData.append('pageNumbers', 'true');
+
+      status.className = 'status loading';
+      status.innerHTML = '<span class="spinner"></span> در حال تبدیل...';
+      convertBtn.disabled = true;
+      convertBtn.innerHTML = '<span class="spinner"></span> در حال پردازش';
+
+      try {
+        const response = await fetch('/convert', { method: 'POST', body: formData });
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.error || 'خطا در تبدیل');
+        }
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = selectedFile.name.replace(/\.md$/i, '') + '.pdf';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        status.className = 'status success';
+        status.innerHTML = '✅ PDF با موفقیت ساخته شد و دانلود آغاز شد.';
+      } catch (err) {
+        status.className = 'status error';
+        status.innerHTML = '❌ ' + err.message;
+      } finally {
+        convertBtn.disabled = false;
+        convertBtn.innerHTML = 'تبدیل به PDF';
+      }
+    });
+  </script>
+</body>
+</html>
